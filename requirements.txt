@@ -1,0 +1,11 @@
+Flask
+Flask-Cors
+PyMuPDF
+numpy
+python-dotenv
+google-generativeai
+deep-translator
+gTTS
+faiss-cpu
+pytesseract
+Pillow 

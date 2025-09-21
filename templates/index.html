@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Legal Doc Assistant</title>
+  <!-- Bootstrap 5 -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <!-- Bootstrap Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0f1222;
+      --card: rgba(255,255,255,0.07);
+      --border: rgba(255,255,255,0.15);
+      --text: #e9ecf1;
+      --muted: #b5bdd1;
+      --accent-1: #6ea8fe;
+      --accent-2: #a78bfa;
+      --bubble-user: linear-gradient(135deg, #6ea8fe, #a78bfa);
+      --bubble-bot: rgba(255,255,255,0.12);
+    }
+    .light {
+      --bg: #f3f6fb;
+      --card: rgba(255,255,255,0.7);
+      --border: rgba(0,0,0,0.08);
+      --text: #0f1222;
+      --muted: #5f6682;
+      --bubble-user: linear-gradient(135deg, #3c8bfd, #7a5af8);
+      --bubble-bot: rgba(0,0,0,0.05);
+    }
+    body {
+      background: radial-gradient(1200px 600px at 10% -10%, #1e2040 0%, transparent 60%),
+                  radial-gradient(1000px 600px at 100% 10%, #22254b 0%, transparent 50%),
+                  var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, Noto Sans, "Apple Color Emoji", "Segoe UI Emoji";
+    }
+    .app { width: min(1100px, 95vw); height: min(86vh, 920px); display: grid; grid-template-columns: 320px 1fr; gap: 16px; }
+    .card-glass { background: var(--card); backdrop-filter: blur(14px) saturate(120%); -webkit-backdrop-filter: blur(14px) saturate(120%); border: 1px solid var(--border); border-radius: 22px; box-shadow: 0 10px 40px rgba(0,0,0,0.25); }
+    .sidebar { display: grid; grid-template-rows: auto 1fr auto; overflow: hidden; }
+    .sidebar .header { padding: 16px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .sidebar .header .title { font-weight: 700; letter-spacing: .3px; }
+    .sidebar .content { padding: 16px; overflow: auto; }
+    .sidebar .footer { border-top: 1px solid var(--border); padding: 12px 16px; display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+    .pill { border: 1px solid var(--border); border-radius: 999px; padding: 8px 12px; font-size: 0.9rem; display: inline-flex; align-items: center; gap: 8px; }
+    .file-drop { border: 1.5px dashed var(--border); border-radius: 16px; padding: 16px; text-align: center; transition: border-color .2s ease, background .2s ease; cursor: pointer; }
+    .file-drop.dragover { background: rgba(110, 168, 254, 0.08); border-color: var(--accent-1); }
+    .chat { display: grid; grid-template-rows: auto 1fr auto; overflow: hidden; }
+    .chat .topbar { padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; }
+    .brand .badge { font-size: .75rem; color: var(--muted); }
+    .chat-body { padding: 16px; overflow: auto; }
+    .msg { display: grid; grid-template-columns: 40px 1fr; gap: 12px; margin-bottom: 14px; align-items: start; animation: slideUp .35s ease both; }
+    .avatar { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--bubble-bot); border: 1px solid var(--border); font-size: 20px; }
+    .bubble { border-radius: 16px; padding: 10px 14px; border: 1px solid var(--border); background: var(--bubble-bot); }
+    .user .bubble { background: var(--bubble-user); color: #fff; border: none; }
+    .meta { font-size: .75rem; color: var(--muted); margin-top: 6px; }
+    @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0px); } }
+    .composer { border-top: 1px solid var(--border); padding: 10px; display: grid; grid-template-columns: auto 1fr auto auto auto; gap: 8px; align-items: center; }
+    .composer input[type="text"] { background: rgba(255,255,255,0.08); border: 1px solid var(--border); color: var(--text); border-radius: 999px; padding: 10px 14px; outline: none; }
+    .composer input::placeholder { color: var(--muted); }
+    .btn-soft { border: 1px solid var(--border); background: rgba(255,255,255,0.08); color: var(--text); border-radius: 999px; height: 42px; width: 42px; display: grid; place-items: center; transition: transform .05s ease, background .2s ease; }
+    .btn-soft:hover { background: rgba(255,255,255,0.15); }
+    .btn-soft:active { transform: translateY(1px); }
+    .btn-send { background: linear-gradient(135deg, var(--accent-1), var(--accent-2)); border: none; color: white; border-radius: 999px; height: 42px; width: 42px; display: grid; place-items: center; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.2), 0 6px 16px rgba(124, 97, 255, .35); }
+    .typing { display: inline-flex; gap: 4px; align-items: center; }
+    .typing span { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); animation: bounce 1.2s infinite ease-in-out; }
+    .typing span:nth-child(2) { animation-delay: .15s; }
+    .typing span:nth-child(3) { animation-delay: .3s; }
+    @keyframes bounce { 0%, 80%, 100% { transform: translateY(0); opacity: .6 } 40% { transform: translateY(-5px); opacity: 1 } }
+    .recording { animation: blink 1s infinite; color: red !important; }
+    @keyframes blink { 50% { opacity: 0.35; } }
+    @media (max-width: 900px) { .app { grid-template-columns: 1fr; height: 92vh; } .sidebar { order: 2; } .chat { order: 1; } }
+
+    /* ===== Splash Screen Styles ===== */
+    .splash-screen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 10000;
+      display: grid;
+      place-items: center;
+      background: radial-gradient(1200px 600px at 10% -10%, #1e2040 0%, transparent 60%),
+                  radial-gradient(1000px 600px at 100% 10%, #22254b 0%, transparent 50%),
+                  var(--bg);
+      transition: opacity .8s ease-out, visibility .8s ease-out;
+      opacity: 1;
+      visibility: visible;
+      overflow: hidden;
+    }
+    .splash-screen.hidden {
+      opacity: 0;
+      visibility: hidden;
+    }
+    .splash-content {
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1rem;
+      position: relative;
+      z-index: 2;
+    }
+    .splash-logo {
+      width: 120px;
+      height: 120px;
+      animation: popIn 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+    }
+    .splash-logo .gavel {
+        animation: swing 2s ease-in-out infinite alternate;
+        transform-origin: top center;
+    }
+    .splash-title {
+      font-size: 2.5rem;
+      font-weight: 700;
+      letter-spacing: 1px;
+      background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      animation: fadeInSlideUp 1s .2s ease-out forwards;
+      opacity: 0;
+    }
+    .splash-subtitle {
+      font-size: 1rem;
+      color: var(--muted);
+      animation: fadeInSlideUp 1s .4s ease-out forwards;
+      opacity: 0;
+    }
+    .enter-btn {
+      background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
+      border: none;
+      color: white;
+      border-radius: 999px;
+      padding: 12px 32px;
+      font-weight: 600;
+      margin-top: 20px;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.2), 0 8px 25px rgba(124, 97, 255, .4);
+      cursor: pointer;
+      transition: transform .2s ease, box-shadow .2s ease;
+      animation: fadeInSlideUp 1s .6s ease-out forwards;
+      opacity: 0;
+    }
+    .enter-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.2), 0 12px 30px rgba(124, 97, 255, .5);
+    }
+
+    /* --- New Background Animation Styles --- */
+    .splash-bg-animation {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 1;
+    }
+    .splash-bg-animation ul {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+    }
+    .splash-bg-animation li {
+        position: absolute;
+        display: block;
+        list-style: none;
+        width: 20px;
+        height: 20px;
+        background: rgba(255, 255, 255, 0.1);
+        animation: floatUp 25s linear infinite;
+        bottom: -180px;
+    }
+    .splash-bg-animation li:nth-child(1){ left: 25%; width: 80px; height: 80px; animation-delay: 0s; }
+    .splash-bg-animation li:nth-child(2){ left: 10%; width: 20px; height: 20px; animation-delay: 2s; animation-duration: 12s; }
+    .splash-bg-animation li:nth-child(3){ left: 70%; width: 20px; height: 20px; animation-delay: 4s; }
+    .splash-bg-animation li:nth-child(4){ left: 40%; width: 60px; height: 60px; animation-delay: 0s; animation-duration: 18s; }
+    .splash-bg-animation li:nth-child(5){ left: 65%; width: 20px; height: 20px; animation-delay: 0s; }
+    .splash-bg-animation li:nth-child(6){ left: 75%; width: 110px; height: 110px; animation-delay: 3s; background: rgba(110, 168, 254, 0.15); }
+    .splash-bg-animation li:nth-child(7){ left: 35%; width: 150px; height: 150px; animation-delay: 7s; }
+    .splash-bg-animation li:nth-child(8){ left: 50%; width: 25px; height: 25px; animation-delay: 15s; animation-duration: 45s; }
+    .splash-bg-animation li:nth-child(9){ left: 20%; width: 15px; height: 15px; animation-delay: 2s; animation-duration: 35s; background: rgba(167, 139, 250, 0.15); }
+    .splash-bg-animation li:nth-child(10){ left: 85%; width: 150px; height: 150px; animation-delay: 0s; animation-duration: 11s; }
+
+    @keyframes floatUp {
+       0%{
+            transform: translateY(0) rotate(0deg);
+            opacity: 1;
+            border-radius: 0;
+        }
+        100%{
+            transform: translateY(-120vh) rotate(720deg);
+            opacity: 0;
+            border-radius: 50%;
+        }
+    }
+    /* --- End of New Styles --- */
+
+    @keyframes popIn {
+      from { transform: scale(0.5); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+    @keyframes fadeInSlideUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes swing {
+        0% { transform: rotate(-10deg); }
+        100% { transform: rotate(10deg); }
+    }
+  </style>
+</head>
+<body class="" id="themeRoot">
+  <!-- ===== Splash Screen Markup ===== -->
+  <div class="splash-screen" id="splashScreen">
+    <div class="splash-bg-animation">
+      <ul>
+         <li></li>
+         <li></li>
+         <li></li>
+         <li></li>
+         <li></li>
+         <li></li>
+         <li></li>
+         <li></li>
+         <li></li>
+         <li></li>
+      </ul>
+    </div>
+    <div class="splash-content">
+      <div class="splash-logo">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color: var(--text);">
+            <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <g class="gavel" style="transform-origin: 12px 10px;">
+                <path d="m10.2 14.2-2.4 2.4"></path>
+                <path d="m14 10-4.4 4.4"></path>
+                <path d="m15.8 11.8 2.4 2.4"></path>
+                <path d="m11.6 15.6 2.4-2.4"></path>
+                <path d="m8.4 12.8 2.4-2.4"></path>
+                <path d="M12 7.5a2.5 2.5 0 0 1 5 0"></path>
+                <path d="M12 7.5a2.5 2.5 0 0 0-5 0"></path>
+            </g>
+        </svg>
+      </div>
+      <h1 class="splash-title">JurisAI</h1>
+      <p class="splash-subtitle">Clarity in Every Clause.</p>
+      <button class="enter-btn" id="enterAppBtn">Get Started</button>
+    </div>
+  </div>
+
+  <div class="app">
+    <!-- Sidebar -->
+    <aside class="sidebar card-glass">
+      <div class="header">
+        <div class="title">📄 Document Panel</div>
+        <div class="d-flex align-items-center gap-2">
+          <button class="btn btn-sm btn-outline-secondary rounded-pill" id="themeToggle"><i class="bi bi-moon-stars"></i></button>
+          <button class="btn btn-sm btn-outline-primary rounded-pill" id="clearChat"><i class="bi bi-trash"></i></button>
+        </div>
+      </div>
+
+      <div class="content">
+        <div id="fileDrop" class="file-drop">
+          <i class="bi bi-cloud-arrow-up fs-4"></i>
+          <div class="fw-semibold mt-1">Drop PDF here or click to upload</div>
+          <div class="text-secondary small">Max 20MB • .pdf</div>
+          <input id="fileInput" type="file" accept="application/pdf" hidden>
+        </div>
+
+        <div class="mt-3">
+          <div class="pill mb-2"><i class="bi bi-translate"></i> <span>Language</span>
+            <select id="langSelect" class="form-select form-select-sm border-0 bg-transparent text-primary" style="width:auto; display:inline-block">
+              <option value="en" selected>English</option>
+              <option value="hi">हिंदी</option>
+              <option value="te">తెలుగు</option>
+              <option value="ta">தமிழ்</option>
+              <option value="mr">मराठी</option>
+            </select>
+          </div>
+          <button id="viewSummary" class="btn btn-outline-warning w-100 rounded-pill"><i class="bi bi-journal-text me-1"></i> View Summary</button>
+        </div>
+
+        <hr class="my-3">
+        <div>
+          <div class="fw-bold mb-1">Export</div>
+          <div class="d-grid gap-2">
+            <button id="exportPdf" class="btn btn-outline-danger rounded-pill"><i class="bi bi-filetype-pdf me-1"></i> Download PDF</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer small text-secondary">
+        <span><i class="bi bi-info-circle me-1"></i>Upload a legal document to begin.</span>
+      </div>
+    </aside>
+
+    <!-- Chat -->
+    <section class="chat card-glass">
+      <div class="topbar">
+        <div class="brand">
+          <div class="avatar"><i class="bi bi-robot"></i></div>
+          <div>
+            Legal Doc Assistant
+            <div class="badge">Simplifying complex legal documents</div>
+          </div>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+          <span class="pill"><i class="bi bi-clock-history"></i> Session Active</span>
+        </div>
+      </div>
+
+      <div id="chatBody" class="chat-body">
+        <div class="msg bot">
+          <div class="avatar">🤖</div>
+          <div>
+            <div class="bubble">Hi! Upload a PDF and ask me anything about it. I’ll summarize, answer questions, and translate if needed.</div>
+            <div class="meta">Assistant • just now</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="composer">
+        <button id="attach" class="btn-soft" title="Attach PDF"><i class="bi bi-paperclip"></i></button>
+        <input id="userInput" type="text" placeholder="Ask about your document…" autocomplete="off">
+        <button id="micBtn" class="btn-soft" title="Voice Input"><i class="bi bi-mic-fill"></i></button>
+        <button id="stopBtn" class="btn-soft" title="Stop Generation" style="display:none"><i class="bi bi-stop-fill"></i></button>
+        <button id="sendBtn" class="btn-send" title="Send"><i class="bi bi-send-fill"></i></button>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    // ===== Theme toggle =====
+    const themeRoot = document.getElementById('themeRoot');
+    document.getElementById('themeToggle').addEventListener('click', () => {
+      themeRoot.classList.toggle('light');
+    });
+
+    // ===== Chat helpers =====
+    const chatBody = document.getElementById('chatBody');
+    function scrollToBottom(){ chatBody.scrollTop = chatBody.scrollHeight; }
+
+    // ---- Language helpers (UI code -> BCP-47) ----
+    const langSelect = document.getElementById('langSelect');
+    const langMap = { en:'en-US', hi:'hi-IN', te:'te-IN', ta:'ta-IN', mr:'mr-IN' };
+    function currentLocale(){
+      const v = langSelect?.value || 'en';
+      return langMap[v] || 'en-US';
+    }
+
+    // ---- TTS (Patched to use backend /tts so Telugu/Tamil/etc. speak) ----
+    let audioHandle = null;
+    const stopBtn = document.getElementById('stopBtn');
+
+    async function speakReply(text, langCode){
+      // Stop any current audio or WebSpeech
+      try { if ('speechSynthesis' in window) window.speechSynthesis.cancel(); } catch(_) {}
+      try {
+        if (audioHandle) { audioHandle.pause(); audioHandle.src = ""; audioHandle = null; }
+      } catch(_){}
+
+      stopBtn.style.display = 'grid';
+
+      // Try server TTS (gTTS)
+      try {
+        const res = await fetch("/tts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text, lang: langCode })
+        });
+        if (!res.ok) throw new Error("TTS HTTP " + res.status);
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        audioHandle = new Audio(url);
+        audioHandle.onended = () => { stopBtn.style.display = 'none'; };
+        audioHandle.play().catch(()=>{ stopBtn.style.display = 'none'; });
+        return;
+      } catch (e) {
+        console.warn("Server TTS failed, falling back to Web Speech:", e);
+      }
+
+      // Fallback: Web Speech API (works for English/Hindi typically)
+      if (!('speechSynthesis' in window)) { stopBtn.style.display = 'none'; return; }
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = (langMap[langCode] || 'en-US');
+      u.onend = () => { stopBtn.style.display = 'none'; };
+      window.speechSynthesis.speak(u);
+    }
+
+    stopBtn.addEventListener('click', () => {
+      // Stop audio and Web Speech, and also abort any in-flight chat request (below)
+      try { if (audioHandle) { audioHandle.pause(); audioHandle.currentTime = 0; audioHandle = null; } } catch(_){}
+      try { if ('speechSynthesis' in window) speechSynthesis.cancel(); } catch(_){}
+      stopBtn.style.display = 'none';
+    });
+
+  function bubble({ role = 'bot', text = '', when = 'now' }) {
+  const isUser = role === 'user';
+  const wrapper = document.createElement('div');
+  wrapper.className = `msg ${isUser ? 'user' : 'bot'}`;
+
+  if (isUser) {
+    wrapper.innerHTML = `
+      <div class="avatar">🧑</div>
+      <div>
+        <div class="bubble">${text}</div>
+        <div class="meta">You • ${when}</div>
+      </div>`;
+  } else {
+    const id = "speak-" + Date.now() + "-" + Math.floor(Math.random()*1000);
+    wrapper.innerHTML = `
+      <div class="avatar">🤖</div>
+      <div>
+        <div class="bubble">${text}</div>
+        <div class="meta">Assistant • ${when} <button class="btn btn-sm btn-link p-0 ms-2" data-speak-id="${id}" style="text-decoration:none">🔊</button></div>
+      </div>`;
+    // attach speaker handler
+    setTimeout(() => {
+      const btn = wrapper.querySelector(`[data-speak-id="${id}"]`);
+      if (btn) {
+        btn.addEventListener("click", () => {
+          speakReply(text, langSelect.value); // reuse existing TTS
+        });
+      }
+    }, 0);
+  }
+
+  chatBody.appendChild(wrapper);
+  scrollToBottom();
+  return wrapper;
+}
+
+
+    function typingBubble(){
+      const el = document.createElement('div');
+      el.className = 'msg bot';
+      el.innerHTML = `
+        <div class="avatar">🤖</div>
+        <div class="bubble"><span class="typing"><span></span><span></span><span></span></span></div>
+        <div class="meta">Assistant • typing…</div>`;
+      chatBody.appendChild(el);
+      scrollToBottom();
+      return el;
+    }
+
+    // ===== Send message =====
+    const input = document.getElementById('userInput');
+    const sendBtn = document.getElementById('sendBtn');
+    let controller = null; // for aborting fetch later
+
+    async function sendMessage(){
+      const text = input.value.trim();
+      if(!text) return;
+      input.value = '';
+      bubble({ role: 'user', text, when: 'just now' });
+
+      const typing = typingBubble();
+      controller = new AbortController();
+
+      try {
+        const res = await fetch("/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: text, lang: langSelect.value }),
+          signal: controller.signal
+        });
+        const data = await res.json();
+        typing.remove();
+        const reply = data.reply || '⚠️ No reply';
+        bubble({ role: 'bot', text: reply, when: 'now' });
+
+        // 🔊 speak in the language returned by server
+        if (data.lang) speakReply(reply, data.lang);
+      } catch(e){
+        typing.remove();
+        bubble({ role: 'bot', text: '⚠️ Request cancelled or server error.', when: 'now' });
+      } finally {
+        controller = null;
+      }
+    }
+
+    sendBtn.addEventListener('click', sendMessage);
+    input.addEventListener('keydown', (e)=>{ if(e.key === 'Enter') sendMessage(); });
+
+    // Stop generation (abort fetch; TTS stop handled above too)
+    document.getElementById('stopBtn').addEventListener('click', ()=>{ if(controller) controller.abort(); });
+
+    // ===== File upload (click & drag) =====
+    const fileDrop = document.getElementById('fileDrop');
+    const fileInput = document.getElementById('fileInput');
+    const attach = document.getElementById('attach');
+
+    function openPicker(){ fileInput.click(); }
+    attach.addEventListener('click', openPicker);
+    fileDrop.addEventListener('click', openPicker);
+
+    fileDrop.addEventListener('dragover', (e)=>{ e.preventDefault(); fileDrop.classList.add('dragover'); });
+    fileDrop.addEventListener('dragleave', ()=> fileDrop.classList.remove('dragover'));
+    fileDrop.addEventListener('drop', (e)=>{
+      e.preventDefault();
+      fileDrop.classList.remove('dragover');
+      if(e.dataTransfer.files && e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+    });
+    fileInput.addEventListener('change', (e)=>{
+      if(e.target.files && e.target.files[0]) handleFile(e.target.files[0]);
+    });
+
+    function ensureUploadsUI(){
+      if (document.getElementById('uploadsBox')) return;
+      const box = document.createElement('div');
+      box.id = 'uploadsBox';
+      box.className = 'mt-3';
+      box.innerHTML = `
+        <div class="fw-bold mb-2">Uploaded</div>
+        <div id="uploadsList" class="d-flex flex-column gap-2"></div>
+      `;
+      fileDrop.parentElement.insertBefore(box, fileDrop.nextSibling);
+    }
+    function addUploadChip(filename){
+      ensureUploadsUI();
+      const list = document.getElementById('uploadsList');
+      if ([...list.children].some(n => n.dataset.fn === filename)) return;
+      const item = document.createElement('div');
+      item.dataset.fn = filename;
+      item.className = 'pill d-flex align-items-center justify-content-between';
+      item.style.maxWidth = '100%';
+      item.innerHTML = `
+        <span class="text-truncate" style="max-width: 210px" title="${filename}">${filename}</span>
+        <button class="btn btn-sm btn-outline-danger rounded-pill"><i class="bi bi-x-lg"></i></button>
+      `;
+      item.querySelector('button').addEventListener('click', async ()=>{
+        try {
+          const res = await fetch('/remove', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filename })
+          });
+          const data = await res.json();
+          item.remove();
+          bubble({ role: 'bot', text: data.message || `Removed '${filename}'.`, when: 'now' });
+        } catch(e) {
+          bubble({ role: 'bot', text: `⚠️ Failed to remove '${filename}'.`, when: 'now' });
+        }
+      });
+      list.appendChild(item);
+    }
+
+    async function handleFile(file){
+      if(file.type !== 'application/pdf') { alert('Please upload a PDF.'); return; }
+      const form = new FormData();
+      form.append('file', file);
+      bubble({ role: 'bot', text: `Uploading <b>${file.name}</b>…`, when: 'now' });
+      try {
+        const res = await fetch('/upload', { method: 'POST', body: form });
+        const data = await res.json();
+        bubble({ role: 'bot', text: data.message || 'PDF processed! You can start asking questions.', when: 'now' });
+        if (data.filename) addUploadChip(data.filename);
+      } catch(err){
+        bubble({ role: 'bot', text: '⚠️ Upload failed. Try again.', when: 'now' });
+      }
+    }
+
+    // ===== Summary / Export buttons =====
+    document.getElementById('viewSummary').addEventListener('click', async ()=>{
+      const typing = typingBubble();
+      try {
+        const res = await fetch(`/summary?lang=${encodeURIComponent(langSelect.value)}`);
+        const data = await res.json();
+        typing.remove();
+        bubble({ role: 'bot', text: data.summary || 'No summary available yet.', when: 'now' });
+        if (data.summary) speakReply(data.summary, langSelect.value);
+      } catch(err){
+        typing.remove();
+        bubble({ role: 'bot', text: '⚠️ Could not fetch summary.', when: 'now' });
+      }
+    });
+
+    document.getElementById('exportPdf').addEventListener('click', ()=>{ window.location.href = '/export/pdf'; });
+    // ===== Clear chat =====
+    document.getElementById('clearChat').addEventListener('click', ()=>{
+      try { if ('speechSynthesis' in window) speechSynthesis.cancel(); } catch(_){}
+      try { if (audioHandle) { audioHandle.pause(); audioHandle.src = ""; audioHandle = null; } } catch(_){}
+      chatBody.innerHTML = '';
+    });
+
+    // ===== 🎤 Voice input with blinking mic =====
+    const micBtn = document.getElementById('micBtn');
+    micBtn.addEventListener('click', () => {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognition) {
+        bubble({ role: 'bot', text: '⚠️ Your browser does not support voice input. Use Chrome on HTTPS or localhost.' });
+        return;
+      }
+      const recognition = new SpeechRecognition();
+      recognition.lang = currentLocale();
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+
+      micBtn.classList.add('recording'); // start blink
+      recognition.start();
+
+      recognition.onresult = function(event) {
+        const text = event.results[0][0].transcript;
+        input.value = text;
+        sendMessage();
+      };
+      recognition.onend = function() { micBtn.classList.remove('recording'); };
+      recognition.onerror = function(event) {
+        micBtn.classList.remove('recording');
+        bubble({ role: 'bot', text: "⚠️ Voice recognition error: " + event.error, when: 'now' });
+      };
+    });
+
+    // ===== On load: show any already-loaded PDFs (server memory) =====
+    (async function preloadFiles(){
+      try {
+        const r = await fetch('/files');
+        const d = await r.json();
+        (d.files || []).forEach(addUploadChip);
+      } catch(_) {}
+    })();
+  </script>
+  
+  <!-- ===== Splash Screen Script ===== -->
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const splashScreen = document.getElementById('splashScreen');
+      const enterAppBtn = document.getElementById('enterAppBtn');
+
+      if (enterAppBtn) {
+        enterAppBtn.addEventListener('click', () => {
+          splashScreen.classList.add('hidden');
+          // To be safe, remove it from the DOM after the transition so it can't interfere
+          setTimeout(() => {
+            splashScreen.style.display = 'none';
+          }, 800); // Must match CSS transition duration
+        });
+      }
+    });
+  </script>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+

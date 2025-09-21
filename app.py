@@ -6,6 +6,7 @@ import logging
 from typing import List, Tuple
 import requests
 import re
+import itertools
 
 from dotenv import load_dotenv
 from flask import Flask, request, jsonify, render_template, send_file
@@ -60,8 +61,11 @@ GENAI_API_KEY = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_K
 USE_GEMINI_FOR_EMBEDS = os.environ.get("USE_GEMINI_EMBEDDINGS", "false").lower() in ("1", "true", "yes")
 if GENAI_AVAILABLE:
     if GENAI_API_KEY:
-        genai.configure(api_key=GENAI_API_KEY)
-        log.info("Gemini client configured.")
+        try:
+            genai.configure(api_key=GENAI_API_KEY)
+            log.info("Gemini client configured.")
+        except Exception as e:
+            log.warning("Failed initial genai.configure: %s", e)
     else:
         log.info("Gemini library available but no API key found. Generation/OCR with Gemini will fail unless key provided.")
 else:
@@ -102,6 +106,97 @@ else:
 if USE_GEMINI_FOR_EMBEDS:
     log.info("Environment requested using Gemini for embeddings.")
     PREFER_LOCAL_EMBEDS = False
+
+# ---------------- Gemini Key Rotation ----------------
+# Accept comma-separated keys in GEMINI_API_KEYS env var.
+GEMINI_KEYS = [k.strip() for k in os.getenv("GEMINI_API_KEYS", "").split(",") if k.strip()]
+key_cycle = itertools.cycle(GEMINI_KEYS) if GEMINI_KEYS else None
+_current_key = None
+if key_cycle:
+    _current_key = next(key_cycle)
+    if GENAI_AVAILABLE and _current_key:
+        try:
+            genai.configure(api_key=_current_key)
+            log.info("Configured Gemini with first key from GEMINI_API_KEYS.")
+        except Exception as e:
+            log.warning("Initial gemini.configure with GEMINI_API_KEYS failed: %s", e)
+
+def configure_gemini(key: str):
+    """Set gemini client key for the genai library (if available)."""
+    if not GENAI_AVAILABLE:
+        return
+    try:
+        genai.configure(api_key=key)
+        log.info("Gemini configured to new key (rotated).")
+    except Exception as e:
+        log.warning("configure_gemini failed: %s", e)
+
+def call_gemini_generate(inputs, model_name=CHAT_MODEL_NAME, tries=None):
+    """
+    Wrapper for model.generate_content with key rotation on error.
+    inputs: prompt string or list of inputs compatible with genai.GenerativeModel.generate_content
+    """
+    global _current_key
+    if not GENAI_AVAILABLE:
+        raise RuntimeError("Gemini client not available.")
+    if GEMINI_KEYS:
+        tries = tries or len(GEMINI_KEYS)
+    else:
+        tries = tries or 1
+
+    last_exc = None
+    for _ in range(tries):
+        try:
+            model = genai.GenerativeModel(model_name)
+            resp = model.generate_content(inputs)
+            return resp
+        except Exception as e:
+            last_exc = e
+            log.warning("Gemini generate_content error: %s", e)
+            if key_cycle:
+                try:
+                    _current_key = next(key_cycle)
+                    configure_gemini(_current_key)
+                    log.info("Rotated Gemini key and retrying generate_content.")
+                except Exception as e2:
+                    log.warning("Failed to rotate key during generate_content retry: %s", e2)
+            else:
+                # no rotation possible, break
+                break
+    raise RuntimeError(f"Gemini generate_content failed after {tries} tries. Last error: {last_exc}")
+
+def call_gemini_embed(model: str, content, task_type: str = "retrieval_document", tries=None):
+    """
+    Wrapper for genai.embed_content with key rotation on error.
+    model: embedding model string
+    content: single string or list of strings
+    """
+    global _current_key
+    if not GENAI_AVAILABLE:
+        raise RuntimeError("Gemini client not available.")
+    if GEMINI_KEYS:
+        tries = tries or len(GEMINI_KEYS)
+    else:
+        tries = tries or 1
+
+    last_exc = None
+    for _ in range(tries):
+        try:
+            res = genai.embed_content(model=model, content=content, task_type=task_type)
+            return res
+        except Exception as e:
+            last_exc = e
+            log.warning("Gemini embed_content error: %s", e)
+            if key_cycle:
+                try:
+                    _current_key = next(key_cycle)
+                    configure_gemini(_current_key)
+                    log.info("Rotated Gemini key and retrying embed_content.")
+                except Exception as e2:
+                    log.warning("Failed to rotate key during embed_content retry: %s", e2)
+            else:
+                break
+    raise RuntimeError(f"Gemini embed_content failed after {tries} tries. Last error: {last_exc}")
 
 # ---------------- In-memory state & thread-safety ----------------
 index_lock = threading.Lock()
@@ -179,16 +274,16 @@ def embed_texts(texts: List[str], batch_size: int = 32) -> np.ndarray:
             # Fall through to try GEMINI if available
 
     # 2) Try GEMINI (batched)
-    if GENAI_AVAILABLE and GENAI_API_KEY:
+    if GENAI_AVAILABLE and (GENEI_API_KEY := (os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY") or _current_key)):
         all_embs = []
         try:
             # batch and call genai.embed_content with list of texts
             for i in range(0, len(texts), batch_size):
                 batch = texts[i:i+batch_size]
                 try:
-                    res = genai.embed_content(model=EMBED_MODEL, content=batch, task_type="retrieval_document")
+                    # Use rotation-aware wrapper
+                    res = call_gemini_embed(model=EMBED_MODEL, content=batch, task_type="retrieval_document")
                     # Attempt to parse response: handle multiple response shapes
-                    # res may be dict-like or object; try common accesses
                     batch_embs = []
                     if isinstance(res, dict):
                         # dict form: maybe 'embeddings' key
@@ -265,11 +360,12 @@ def safe_translate(text: str, target_lang: str) -> str:
 # ---------- OCR fallback via Gemini ----------
 def ocr_with_gemini(pil_image: Image.Image) -> str:
     """Use Gemini (image -> text) only if CHAT_MODEL is available."""
-    if CHAT_MODEL is None:
+    if CHAT_MODEL is None and not GEMINI_KEYS:
         return ""
     try:
+        # Use the rotation-safe call for generation
         prompt = "Extract all textual content from this image. Return only the plain text in reading order. No commentary."
-        resp = CHAT_MODEL.generate_content([prompt, pil_image])
+        resp = call_gemini_generate([prompt, pil_image])
         return (resp.text or "").strip()
     except Exception as e:
         log.warning("Gemini OCR failed: %s", e)
@@ -320,14 +416,15 @@ def clean_and_format(text: str) -> str:
     text = re.sub(r'#+', '', text)        # remove ###
 
     # Normalize spacing
-    text = text.replace("\n\n", "\n").strip()
+    text = text.replace("\r\n", "\n")
+    # Convert triple newlines to single
+    text = re.sub(r'\n{2,}', '\n', text).strip()
 
     # Replace common list markers with bullets
-    text = text.replace(" - ", "\n• ")
-    text = text.replace("\n*", "\n• ")
+    text = re.sub(r'^\s*-\s*', '• ', text, flags=re.M)
+    text = re.sub(r'^\s*\*\s*', '• ', text, flags=re.M)
 
     return text.strip()
-
 
 # ---------------- ROUTES ----------------
 @app.route("/")
@@ -426,10 +523,11 @@ def summary():
         f"Context:\n{sample}"
     )
     try:
-        if CHAT_MODEL is None:
+        if CHAT_MODEL is None and not GEMINI_KEYS:
             # fallback: simple local summary (very basic): return the sample truncated
             return jsonify({"summary": safe_translate(sample[:1500] + ("..." if len(sample) > 1500 else ""), lang)})
-        resp = CHAT_MODEL.generate_content(prompt)
+        # Use rotation-aware call for generation
+        resp = call_gemini_generate(prompt)
         summ = (resp.text or "").strip()
         cleaned = clean_and_format(summ)
         return jsonify({"summary": safe_translate(cleaned, lang)})
@@ -474,13 +572,14 @@ def chat():
         )
 
     try:
-        if CHAT_MODEL is None:
+        if CHAT_MODEL is None and not GEMINI_KEYS:
             # Simple fallback: return combined context or a short canned reply
             reply = (context[:1500] + ("\n\n(Answer generation unavailable — Gemini key missing.)")) if context else "Answer generation currently unavailable (no Gemini model configured)."
             return jsonify({"reply": safe_translate(reply, lang), "lang": lang})
-        response = CHAT_MODEL.generate_content(prompt)
+        # rotation-aware generation call
+        response = call_gemini_generate(prompt)
         reply = (response.text or "").strip()
-        reply= clean_and_format(reply)
+        reply = clean_and_format(reply)
         reply = safe_translate(reply, lang)
         return jsonify({"reply": reply, "lang": lang})
     except Exception as e:
@@ -501,7 +600,7 @@ def tts_api():
         # Optional safety limit
         if len(text) > 4000:
             text = text[:4000] + " ..."
-        text=clean_and_format(text)
+        text = clean_and_format(text)
 
         # Generate TTS into memory
         tts_obj = gTTS(text=text, lang=lang)
@@ -527,8 +626,9 @@ def export_pdf():
         sample = "\n\n".join(chunks[:6])
         prompt = f"Summarize succinctly in bullet points:\n\n{sample}"
         try:
-            if CHAT_MODEL:
-                resp = CHAT_MODEL.generate_content(prompt)
+            if CHAT_MODEL or GEMINI_KEYS:
+                # use rotation-aware generation if possible
+                resp = call_gemini_generate(prompt)
                 body = (resp.text or "Summary not available.").strip()
             else:
                 body = sample[:1500]
@@ -548,5 +648,5 @@ def export_pdf():
 if __name__ == "__main__":
     log.info("Starting Legal Document Assistant backend.")
     log.info("Local embeddings available: %s", bool(local_embedder))
-    log.info("Gemini generation available: %s", CHAT_MODEL is not None)
+    log.info("Gemini generation available: %s", CHAT_MODEL is not None or bool(GEMINI_KEYS))
     app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))

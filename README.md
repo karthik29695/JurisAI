@@ -1,5 +1,6 @@
 # JurisAI
 Multilingual AI legal assistant for simplifying documents with voice and text.
+
 Problem:
 Legal documents in India are lengthy, complex, and often available only in English. Farmers, small business owners, and regional citizens struggle to understand policies, contracts, and legal terms due to language barriers and lack of expert guidance.
 

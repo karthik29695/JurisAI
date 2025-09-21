@@ -472,7 +472,7 @@ def upload_pdf():
 
     uploaded_pdfs.append({"filename": filename, "chunks": new_chunks})
     return jsonify({
-        "message": f"PDF '{filename}' processed, {len(new_chunks)} chunks added.",
+        "message": f"PDF '{filename}' processed, You can start asking questions.",
         "filename": filename
     })
 

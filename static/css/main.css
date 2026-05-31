@@ -1,0 +1,33 @@
+        body { background-color: #f8fafc; color: #0f172a; overflow-x: hidden; transition: background-color 0.3s ease, color 0.3s ease; }
+        .dark body { background-color: #0f172a; color: #f8fafc; }
+        .glass-card { background: rgba(255,255,255,0.7); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(0,0,0,0.05); box-shadow: 0 8px 32px 0 rgba(0,0,0,0.05); }
+        .dark .glass-card { background: rgba(30,41,59,0.6); border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 8px 32px 0 rgba(0,0,0,0.3); }
+        .glass-nav { background: rgba(255,255,255,0.8); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border-bottom: 1px solid rgba(0,0,0,0.05); }
+        .dark .glass-nav { background: rgba(15,23,42,0.8); border-bottom: 1px solid rgba(255,255,255,0.05); }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .dark ::-webkit-scrollbar-thumb { background: #334155; }
+        .dark ::-webkit-scrollbar-thumb:hover { background: #475569; }
+        .typing-dot { animation: bounce-short 1.4s infinite ease-in-out both; }
+        .typing-dot:nth-child(1) { animation-delay: -0.32s; }
+        .typing-dot:nth-child(2) { animation-delay: -0.16s; }
+        .blob { position: absolute; filter: blur(80px); z-index: -1; opacity: 0.4; }
+
+        /* Risk finding cards */
+        .risk-high  { border-left-color: #ef4444; }
+        .risk-medium{ border-left-color: #eab308; }
+        .risk-low   { border-left-color: #22c55e; }
+        .badge-high   { background: rgba(239,68,68,.15);  color: #f87171; border: 1px solid rgba(239,68,68,.3); }
+        .badge-medium { background: rgba(234,179,8,.15);  color: #facc15; border: 1px solid rgba(234,179,8,.3); }
+        .badge-low    { background: rgba(34,197,94,.15);  color: #4ade80; border: 1px solid rgba(34,197,94,.3); }
+
+        /* Summary section bullets */
+        .summary-content ul { list-style: disc; padding-left: 1rem; }
+        .summary-content li { margin-bottom: .25rem; }
+        .summary-content p  { margin-bottom: .5rem; }
+
+        /* Spinner */
+        .spin { animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }

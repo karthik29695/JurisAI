@@ -5,7 +5,6 @@
   <img src="https://img.shields.io/badge/Flask-3.0-lightgrey?logo=flask" alt="Flask">
   <img src="https://img.shields.io/badge/Gemini-2.5_Flash-orange?logo=google" alt="Gemini">
   <img src="https://img.shields.io/badge/Redis-Session_Store-red?logo=redis" alt="Redis">
-  <img src="https://img.shields.io/badge/License-MIT-green" alt="License">
 </p>
 
 ---
@@ -268,10 +267,3 @@ pytest tests/ --cov=app --cov-report=term-missing
 
 ---
 
-## Contributing
-
-Pull requests are welcome. For significant changes, please open an issue first to discuss what you would like to change.
-
-## License
-
-MIT License. See `LICENSE` for details.
